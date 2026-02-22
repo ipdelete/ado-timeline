@@ -8,3 +8,5 @@
 - ui pattern: Status signal derived from state + tags — "blocked" is a tag-based signal, not a state value. Priority: blocked > closed > active > new.
 - tooling: Use Playwright CLI for screenshots, not headless Chrome directly (chromium --headless worked but is fragile).
 - css: All colors via CSS custom properties in :root. Badge classes are semantic (ok/warn/danger/info/neutral). Dot classes are dot-ok/dot-warn/dot-danger/dot-new.
+- auth: ADO REST API supports CORS from localhost, so no proxy needed. Token acquisition is the only server-side concern.
+- config: .env file stores ADO_ORG, ADO_PROJECT, ADO_AREA_PATH, ADO_ITERATION_PATH, ADO_TOKEN. Gitignored. scripts/start.ps1 refreshes token and starts server.
