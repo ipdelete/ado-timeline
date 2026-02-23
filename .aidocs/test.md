@@ -161,7 +161,15 @@ playwright-cli eval "() => { const firstCard = document.querySelector('.timeline
 
 **Pass criteria:** `pass: true` — work item ID link has `_workitems/edit/<id>`, opens in new tab, card expand state does not toggle on link click, and PR links (if present) have `/pullrequest/<id>` URLs.
 
-### 10. Cleanup
+### 10. Comment HTML Rendering
+
+```bash
+playwright-cli eval "() => { const target = uiState.workItems.find(i => i.comments && i.comments.length > 0); if (!target) return { pass: false, reason: 'no work item with comments found' }; target.comments[0].text = '<strong>formatted</strong> <code>inline</code> <a href=\"https://example.com\">link</a>'; uiState.expandedId = target.id; renderTimeline(); const comment = document.querySelector('.timeline-card.is-expanded .comment-text'); if (!comment) return { pass: false, reason: 'no comment text found in expanded card' }; const hasRenderedHtml = !!comment.querySelector('strong, code, a'); const hasEscapedHtml = /&lt;\\/?(strong|code|a)/i.test(comment.innerHTML); return { pass: hasRenderedHtml && !hasEscapedHtml, reason: !hasRenderedHtml ? 'comment HTML is not rendered as elements' : hasEscapedHtml ? 'comment contains escaped HTML text' : 'ok', htmlSnippet: comment.innerHTML.slice(0, 180) }; }"
+```
+
+**Pass criteria:** `pass: true` — expanded comment content renders HTML elements (for example, `<strong>` / `<code>` / `<a>`) and does not show escaped tag text.
+
+### 11. Cleanup
 
 ```bash
 playwright-cli close

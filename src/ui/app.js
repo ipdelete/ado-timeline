@@ -514,7 +514,7 @@ function renderActivitySection(item) {
               <span class="comment-author">${escapeHtml(authorName)}</span>
               <span class="comment-date">${relativeTime(c.createdDate)}</span>
             </div>
-            <div class="comment-text">${escapeHtml(c.text)}</div>
+            <div class="comment-text section-html">${sanitizeCommentHtml(c.text)}</div>
           </div>
         </div>
       `}).join('')}

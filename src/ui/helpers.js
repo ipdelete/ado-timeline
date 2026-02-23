@@ -67,7 +67,14 @@ function buildPullRequestUrl(org, project, prId) {
   return `https://dev.azure.com/${encodeURIComponent(org)}/${encodedProject}/_git/${encodedProject}/pullrequest/${encodeURIComponent(String(prId))}`;
 }
 
+function sanitizeCommentHtml(commentText, sanitizeFn) {
+  if (commentText === null || commentText === undefined || commentText === '') return '';
+  const sanitizer = sanitizeFn
+    || (typeof DOMPurify !== 'undefined' && typeof DOMPurify.sanitize === 'function' ? DOMPurify.sanitize.bind(DOMPurify) : (value) => value);
+  return sanitizer(String(commentText));
+}
+
 // ── Node.js export (no-op in browser) ─────────────────────────────────────────
 if (typeof module !== 'undefined' && module.exports) {
-  module.exports = { relativeTime, stateToSignal, signalDotClass, stateBadgeClass, typeIcon, initials, extractIdFromUrl, parseTags, escapeWiqlString, buildWorkItemUrl, buildPullRequestUrl };
+  module.exports = { relativeTime, stateToSignal, signalDotClass, stateBadgeClass, typeIcon, initials, extractIdFromUrl, parseTags, escapeWiqlString, buildWorkItemUrl, buildPullRequestUrl, sanitizeCommentHtml };
 }

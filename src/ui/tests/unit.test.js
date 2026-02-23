@@ -15,7 +15,8 @@ const {
   parseTags,
   escapeWiqlString,
   buildWorkItemUrl,
-  buildPullRequestUrl
+  buildPullRequestUrl,
+  sanitizeCommentHtml
 } = require('../helpers.js');
 
 // ── relativeTime ──────────────────────────────────────────────────────────────
@@ -291,5 +292,22 @@ describe('buildPullRequestUrl', () => {
     assert.equal(buildPullRequestUrl('', 'proj', 1), '');
     assert.equal(buildPullRequestUrl('org', '', 1), '');
     assert.equal(buildPullRequestUrl('org', 'proj', ''), '');
+  });
+});
+
+describe('sanitizeCommentHtml', () => {
+  it('uses provided sanitizer function output', () => {
+    const sanitizer = (html) => `sanitized:${html}`;
+    assert.equal(sanitizeCommentHtml('<strong>x</strong>', sanitizer), 'sanitized:<strong>x</strong>');
+  });
+
+  it('returns empty string for nullish or empty comment text', () => {
+    assert.equal(sanitizeCommentHtml('', (v) => v), '');
+    assert.equal(sanitizeCommentHtml(null, (v) => v), '');
+    assert.equal(sanitizeCommentHtml(undefined, (v) => v), '');
+  });
+
+  it('coerces non-string values before sanitization', () => {
+    assert.equal(sanitizeCommentHtml(123, (v) => `safe:${v}`), 'safe:123');
   });
 });
