@@ -21,3 +21,6 @@
 - architecture: Pure helper functions (relativeTime, stateToSignal, parseTags, etc.) extracted to helpers.js with conditional `module.exports` for Node.js testability. DOM-dependent helpers (escapeHtml, hasLiveConfig) stay in app.js.
 - testing: Unit tests use Node built-in `node:test` — zero dependencies. Run with `node --test src/ui/tests/unit.test.js`.
 - testing: E2e evals must return `{ pass: boolean, reason: string }` — never return raw data for human interpretation. This caught a missed failure where fallback data was treated as live.
+- backlog: 10 quick-plan improvement ideas captured in backlog/plans/. Priorities: click-through links + comment HTML (high), dark mode + search + auto-refresh + linked titles (medium), URL state + keyboard + grouping + summary stats (low).
+- ux gap: Comment text uses escapeHtml() but ADO comments are HTML — should use DOMPurify like description/acceptance criteria fields already do.
+- ux gap: Work item IDs are plain text, not clickable links to ADO. URL pattern: `https://dev.azure.com/{org}/{project}/_workitems/edit/{id}`.
