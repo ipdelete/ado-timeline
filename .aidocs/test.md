@@ -1,6 +1,13 @@
-# ADO Timeline — Manual Test Guide
+# ADO Timeline — Test Guide
 
 Uses [playwright-cli](https://github.com/microsoft/playwright-cli) for browser automation.
+
+## Assertion Convention
+
+> **Every `eval` returns a `pass` boolean.** If `pass` is `false`, the test **FAILED** —
+> stop, read the `reason` field, and investigate before continuing.
+>
+> Do NOT interpret raw data and decide yourself. The eval does the checking.
 
 ## Prerequisites
 
@@ -67,11 +74,11 @@ playwright-cli screenshot --filename=tmp/test-screenshot.png
 ```bash
 playwright-cli open http://localhost:8080 --headed
 # Wait for async load
-playwright-cli eval "() => ({ firstId: document.querySelector('.compact-id')?.textContent, cardCount: document.querySelectorAll('.timeline-item').length, hasError: !!document.querySelector('.empty-section')?.textContent?.includes('failed') })"
+playwright-cli eval "() => { const id = document.querySelector('.compact-id')?.textContent; const count = document.querySelectorAll('.timeline-item').length; const err = document.querySelector('.empty-section')?.textContent || ''; const hasError = err.includes('failed') || err.includes('sample data'); const idOk = /^#\d+$/.test(id); return { pass: idOk && count > 0 && !hasError, reason: !idOk ? 'firstId is not numeric: ' + id : count === 0 ? 'no cards rendered' : hasError ? 'error/fallback detected: ' + err : 'ok', firstId: id, cardCount: count }; }"
 playwright-cli screenshot --filename=tmp/test-live-data.png
 ```
 
-**Expected:** `firstId` is a numeric `#ID` (not `#undefined`), `cardCount` > 0, `hasError` false.
+**Pass criteria:** `pass: true` — `firstId` matches `#\d+`, `cardCount` > 0, no error/fallback message visible.
 
 ### 2. Fallback to Sample Data
 
@@ -79,19 +86,19 @@ playwright-cli screenshot --filename=tmp/test-live-data.png
 # Navigate with a busted config to trigger fallback
 playwright-cli eval "() => { delete window.__ADO_CONFIG; }"
 playwright-cli open http://localhost:8080
-playwright-cli eval "() => document.querySelector('.empty-section')?.textContent"
+playwright-cli eval "() => { const msg = document.querySelector('.empty-section')?.textContent || ''; const expected = 'Missing runtime ADO config/token. Showing bundled sample data.'; return { pass: msg === expected, reason: msg === expected ? 'ok' : 'expected fallback message, got: ' + msg, message: msg }; }"
 ```
 
-**Expected:** Returns "Missing runtime ADO config/token. Showing bundled sample data."
+**Pass criteria:** `pass: true` — fallback message matches exactly.
 
 ### 3. Iteration Dropdown — Current Sprint Default
 
 ```bash
 playwright-cli open http://localhost:8080
-playwright-cli eval "() => document.getElementById('topbar-iteration').value"
+playwright-cli eval "() => { const v = document.getElementById('topbar-iteration').value; const hasValue = v && v.length > 0; return { pass: hasValue, reason: hasValue ? 'ok' : 'iteration dropdown is empty — no current sprint selected', value: v }; }"
 ```
 
-**Expected:** Returns the team's current iteration path (e.g., `Secure Cloud Access\Krypton\CY26Q1`) — sourced from the Team Settings API with `$timeframe=current`.
+**Pass criteria:** `pass: true` — dropdown has a non-empty value (the team's current iteration).
 
 ### 4. Iteration Dropdown — Change Selection
 
@@ -99,29 +106,29 @@ playwright-cli eval "() => document.getElementById('topbar-iteration').value"
 playwright-cli snapshot
 # Find the iteration select ref (e.g., e7) from snapshot, then:
 playwright-cli select <ref> "Secure Cloud Access\\Krypton\\CY25Q4"
-playwright-cli eval "() => document.querySelectorAll('.timeline-item').length"
+playwright-cli eval "() => { const count = document.querySelectorAll('.timeline-item').length; return { pass: count > 0, reason: count > 0 ? 'ok' : 'no cards after iteration change', cardCount: count }; }"
 playwright-cli screenshot --filename=tmp/test-iteration-change.png
 ```
 
-**Expected:** Work item count changes. Topbar count updates.
+**Pass criteria:** `pass: true` — cards rendered after changing iteration.
 
 ### 5. Iteration Dropdown — All Iterations
 
 ```bash
 playwright-cli snapshot
 playwright-cli select <ref> ""
-playwright-cli eval "() => document.querySelectorAll('.timeline-item').length"
+playwright-cli eval "() => { const count = document.querySelectorAll('.timeline-item').length; return { pass: count > 0, reason: count > 0 ? 'ok' : 'no cards for all-iterations view', cardCount: count }; }"
 ```
 
-**Expected:** Count increases — all area path work items load (no iteration filter).
+**Pass criteria:** `pass: true` — card count > 0 (typically increases vs. single iteration).
 
 ### 6. Iteration Dropdown — Team Scoped
 
 ```bash
-playwright-cli eval "() => Array.from(document.getElementById('topbar-iteration').options).map(o => o.value)"
+playwright-cli eval "() => { const opts = Array.from(document.getElementById('topbar-iteration').options).map(o => o.value); const hasOptions = opts.length > 1; return { pass: hasOptions, reason: hasOptions ? 'ok' : 'dropdown has no team iterations (only All)', options: opts }; }"
 ```
 
-**Expected:** Only iterations configured for the team (via `ADO_TEAM`). Not the full project iteration tree.
+**Pass criteria:** `pass: true` — dropdown has team-scoped iteration options beyond "All iterations".
 
 ### 7. Card Expand / Collapse
 
@@ -129,19 +136,19 @@ playwright-cli eval "() => Array.from(document.getElementById('topbar-iteration'
 playwright-cli snapshot
 # Click first card-compact ref from snapshot:
 playwright-cli click <ref>
-playwright-cli snapshot
+playwright-cli eval "() => { const expanded = document.querySelector('.timeline-card.is-expanded'); const sections = expanded ? expanded.querySelectorAll('.section-label') : []; const labels = Array.from(sections).map(s => s.textContent); const hasClose = !!expanded?.querySelector('.card-close-btn'); const ok = labels.includes('Details') && labels.includes('Activity') && labels.includes('Links') && hasClose; return { pass: ok, reason: !expanded ? 'no card expanded' : !hasClose ? 'close button missing' : !ok ? 'missing sections: ' + labels.join(', ') : 'ok', sections: labels, hasClose }; }"
 playwright-cli screenshot --filename=tmp/test-card-expanded.png
 ```
 
-**Expected:** Card expands with Details, Activity, Links sections. Tags visible in expanded pane (not compact bar). Close button (✕) present.
+**Pass criteria:** `pass: true` — expanded card has Details, Activity, Links sections and ✕ close button.
 
 ### 8. Status Dots
 
 ```bash
-playwright-cli eval "() => Array.from(document.querySelectorAll('.timeline-dot')).slice(0,5).map(d => d.className)"
+playwright-cli eval "() => { const dots = Array.from(document.querySelectorAll('.timeline-dot')).map(d => d.className); const validClasses = ['dot-ok', 'dot-warn', 'dot-danger', 'dot-new']; const allValid = dots.every(c => validClasses.some(vc => c.includes(vc))); return { pass: dots.length > 0 && allValid, reason: dots.length === 0 ? 'no dots found' : !allValid ? 'invalid dot class found' : 'ok', count: dots.length, sample: dots.slice(0, 5) }; }"
 ```
 
-**Expected:** Classes include `dot-ok` (green), `dot-warn` (yellow), `dot-danger` (red/blocked), `dot-new` (grey) matching work item states.
+**Pass criteria:** `pass: true` — all timeline dots use valid signal classes.
 
 ### 9. Cleanup
 

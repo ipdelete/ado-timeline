@@ -18,3 +18,6 @@
 - api: WIQL can return thousands of items but the batch detail endpoint is capped at 200 IDs per call. The 200-item slice is silent unless the topbar shows "showing N of M".
 - config: config.local.js is gitignored and only exists after running start.ps1. An inline `window.__ADO_CONFIG = window.__ADO_CONFIG || {}` in index.html prevents 404 console noise.
 - testing: playwright-cli `select` command fails with backslash-containing option values — use JS `selectedIndex` + `dispatchEvent` as a workaround.
+- architecture: Pure helper functions (relativeTime, stateToSignal, parseTags, etc.) extracted to helpers.js with conditional `module.exports` for Node.js testability. DOM-dependent helpers (escapeHtml, hasLiveConfig) stay in app.js.
+- testing: Unit tests use Node built-in `node:test` — zero dependencies. Run with `node --test src/ui/tests/unit.test.js`.
+- testing: E2e evals must return `{ pass: boolean, reason: string }` — never return raw data for human interpretation. This caught a missed failure where fallback data was treated as live.
