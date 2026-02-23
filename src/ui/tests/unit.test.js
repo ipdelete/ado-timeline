@@ -16,7 +16,9 @@ const {
   escapeWiqlString,
   buildWorkItemUrl,
   buildPullRequestUrl,
-  sanitizeCommentHtml
+  sanitizeCommentHtml,
+  isTokenExpiredError,
+  formatLastUpdated
 } = require('../helpers.js');
 
 // ── relativeTime ──────────────────────────────────────────────────────────────
@@ -309,5 +311,35 @@ describe('sanitizeCommentHtml', () => {
 
   it('coerces non-string values before sanitization', () => {
     assert.equal(sanitizeCommentHtml(123, (v) => `safe:${v}`), 'safe:123');
+  });
+});
+
+describe('isTokenExpiredError', () => {
+  it('returns true for 401 status code', () => {
+    assert.equal(isTokenExpiredError(401), true);
+  });
+
+  it('returns true for error messages containing 401', () => {
+    assert.equal(isTokenExpiredError(new Error('WIQL request failed (401)')), true);
+  });
+
+  it('returns false for non-auth errors', () => {
+    assert.equal(isTokenExpiredError(new Error('Work item details request failed (500)')), false);
+  });
+});
+
+describe('formatLastUpdated', () => {
+  it('returns fallback when timestamp is missing', () => {
+    assert.equal(formatLastUpdated(null, Date.now()), 'Last updated: —');
+  });
+
+  it('returns just-now for recent timestamps', () => {
+    const now = Date.now();
+    assert.equal(formatLastUpdated(now - 20_000, now), 'Last updated: just now');
+  });
+
+  it('returns relative minutes for older timestamps', () => {
+    const now = Date.now();
+    assert.equal(formatLastUpdated(now - 5 * 60_000, now), 'Last updated: 5m ago');
   });
 });

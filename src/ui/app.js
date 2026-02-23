@@ -15,6 +15,9 @@ const authConfig = {
   token: runtimeConfig.token || ''
 };
 
+const AUTO_REFRESH_INTERVAL_MS = 60_000;
+const TOKEN_EXPIRED_MESSAGE = 'ADO token expired (401). Re-run .\\scripts\\start.ps1 to refresh token, then reload.';
+
 // ── FAKE DATA STORE ───────────────────────────────────────────────────────────
 // Mirrors real ADO REST API shapes: fields from Work Items API, relations from
 // $expand=relations, comments from Comments API.
@@ -231,7 +234,10 @@ const uiState = {
   expandedId: null,
   workItems: [...store.workItems],
   error: '',
-  loadGeneration: 0
+  loadGeneration: 0,
+  totalCount: store.workItems.length,
+  lastRefreshedAt: null,
+  autoRefreshTimerId: null
 };
 
 // ── HELPERS (pure functions in helpers.js; DOM-dependent helpers below) ────────
@@ -343,11 +349,18 @@ async function loadWorkItems() {
     uiState.workItems = result.items;
     uiState.totalCount = result.totalCount;
     uiState.error = '';
+    uiState.lastRefreshedAt = Date.now();
   } catch (error) {
     if (gen !== uiState.loadGeneration) return;
-    uiState.workItems = [...store.workItems];
-    uiState.totalCount = store.workItems.length;
-    uiState.error = `Live ADO fetch failed: ${error.message}. Showing bundled sample data.`;
+    if (isTokenExpiredError(error)) {
+      uiState.error = TOKEN_EXPIRED_MESSAGE;
+      stopAutoRefresh();
+    } else {
+      uiState.workItems = [...store.workItems];
+      uiState.totalCount = store.workItems.length;
+      uiState.error = `Live ADO fetch failed: ${error.message}. Showing bundled sample data.`;
+      uiState.lastRefreshedAt = Date.now();
+    }
   }
 
   renderTopbar();
@@ -369,6 +382,21 @@ function renderTopbar() {
   const totalCount = uiState.totalCount || total;
   const capNote = totalCount > total ? ` (showing ${total} of ${totalCount})` : '';
   document.getElementById('topbar-count').textContent = `${open} open · ${total} total${capNote}`;
+  document.getElementById('topbar-last-updated').textContent = formatLastUpdated(uiState.lastRefreshedAt);
+}
+
+function stopAutoRefresh() {
+  if (uiState.autoRefreshTimerId) {
+    clearInterval(uiState.autoRefreshTimerId);
+    uiState.autoRefreshTimerId = null;
+  }
+}
+
+function startAutoRefresh() {
+  stopAutoRefresh();
+  uiState.autoRefreshTimerId = setInterval(() => {
+    loadWorkItems();
+  }, AUTO_REFRESH_INTERVAL_MS);
 }
 
 // ── RENDER: TIMELINE ──────────────────────────────────────────────────────────
@@ -633,6 +661,7 @@ async function init() {
   if (!hasLiveConfig()) {
     uiState.workItems = [...store.workItems];
     uiState.error = 'Missing runtime ADO config/token. Showing bundled sample data.';
+    uiState.lastRefreshedAt = Date.now();
     renderTopbar();
     renderTimeline();
     return;
@@ -640,6 +669,7 @@ async function init() {
 
   // Populate iteration dropdown
   const iterSelect = document.getElementById('topbar-iteration');
+  const refreshBtn = document.getElementById('topbar-refresh');
   try {
     const { paths, currentPath } = await fetchIterationPaths();
     if (!config.iterationPath && currentPath) config.iterationPath = currentPath;
@@ -658,7 +688,12 @@ async function init() {
     await loadWorkItems();
   });
 
+  refreshBtn.addEventListener('click', async () => {
+    await loadWorkItems();
+  });
+
   await loadWorkItems();
+  startAutoRefresh();
 }
 
 init();

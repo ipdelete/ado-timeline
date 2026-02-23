@@ -26,3 +26,5 @@
 - ux gap: Work item IDs are plain text, not clickable links to ADO. URL pattern: `https://dev.azure.com/{org}/{project}/_workitems/edit/{id}`.
 - testing: Playwright `eval` that dispatches anchor clicks can navigate and destroy execution context; prevent default in-test when validating click side effects.
 - tooling: On Windows, preserving exact file bytes (e.g., `git show HEAD:file | write_bytes`) avoids accidental massive diffs from newline/encoding churn.
+- testing: Auto-refresh/token-expiry e2e is reliable when WIQL `fetch` is monkey-patched to return `{ ok:false, status:401 }`, then asserting banner text with pass/reason.
+- runtime: Serving from repo root can mismatch index/app expectations; for UI work prefer serving `src/ui` directly to avoid null DOM hooks at init.

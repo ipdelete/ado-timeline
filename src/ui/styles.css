@@ -116,6 +116,27 @@ body {
   max-width: 300px;
 }
 
+.topbar-refresh {
+  font-size: 12px;
+  line-height: 1;
+  color: var(--text-mid);
+  background: #eaeef2;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 4px 7px;
+  cursor: pointer;
+}
+
+.topbar-refresh:hover {
+  background: #dfe5eb;
+}
+
+.topbar-last-updated {
+  font-size: 11px;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
 /* ── TIMELINE AREA ───────────────────────────────────────────── */
 .timeline-area {
   max-width: 920px;

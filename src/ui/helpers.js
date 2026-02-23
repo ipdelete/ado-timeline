@@ -2,8 +2,8 @@
 // Pure helper functions extracted for unit-testability.
 // Loaded before app.js in the browser; importable via require() in Node.
 
-function relativeTime(isoDate) {
-  const diff = Date.now() - new Date(isoDate).getTime();
+function relativeTime(isoDate, nowMs = Date.now()) {
+  const diff = nowMs - new Date(isoDate).getTime();
   const mins = Math.floor(diff / 60000);
   if (mins < 1) return 'just now';
   if (mins < 60) return `${mins}m ago`;
@@ -74,7 +74,21 @@ function sanitizeCommentHtml(commentText, sanitizeFn) {
   return sanitizer(String(commentText));
 }
 
+function isTokenExpiredError(errorOrStatus) {
+  if (errorOrStatus === 401) return true;
+  const msg = typeof errorOrStatus === 'number'
+    ? String(errorOrStatus)
+    : (errorOrStatus?.message || String(errorOrStatus || ''));
+  return msg.includes('(401)') || msg.includes(' 401') || msg === '401';
+}
+
+function formatLastUpdated(lastRefreshedAt, nowMs = Date.now()) {
+  if (!lastRefreshedAt) return 'Last updated: —';
+  const rel = relativeTime(new Date(lastRefreshedAt).toISOString(), nowMs);
+  return `Last updated: ${rel}`;
+}
+
 // ── Node.js export (no-op in browser) ─────────────────────────────────────────
 if (typeof module !== 'undefined' && module.exports) {
-  module.exports = { relativeTime, stateToSignal, signalDotClass, stateBadgeClass, typeIcon, initials, extractIdFromUrl, parseTags, escapeWiqlString, buildWorkItemUrl, buildPullRequestUrl, sanitizeCommentHtml };
+  module.exports = { relativeTime, stateToSignal, signalDotClass, stateBadgeClass, typeIcon, initials, extractIdFromUrl, parseTags, escapeWiqlString, buildWorkItemUrl, buildPullRequestUrl, sanitizeCommentHtml, isTokenExpiredError, formatLastUpdated };
 }

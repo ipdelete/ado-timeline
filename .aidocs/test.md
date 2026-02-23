@@ -169,7 +169,18 @@ playwright-cli eval "() => { const target = uiState.workItems.find(i => i.commen
 
 **Pass criteria:** `pass: true` — expanded comment content renders HTML elements (for example, `<strong>` / `<code>` / `<a>`) and does not show escaped tag text.
 
-### 11. Cleanup
+### 11. Auto-refresh + Token Expiry Handling
+
+```bash
+playwright-cli eval "() => { const refreshBtn = document.getElementById('topbar-refresh'); const stamp = document.getElementById('topbar-last-updated'); if (!refreshBtn || !stamp) return { pass: false, reason: 'missing refresh controls in topbar' }; const before = stamp.textContent || ''; refreshBtn.dispatchEvent(new MouseEvent('click', { bubbles: true })); return { pass: true, reason: 'ok', before }; }"
+playwright-cli eval "() => { const stamp = document.getElementById('topbar-last-updated')?.textContent || ''; const ok = stamp.startsWith('Last updated:'); return { pass: ok, reason: ok ? 'ok' : 'last-updated label missing after manual refresh', stamp }; }"
+playwright-cli eval "() => { const originalFetch = window.fetch; window.fetch = async (...args) => { if (String(args[0]).includes('/_apis/wit/wiql')) return { ok: false, status: 401, json: async () => ({}) }; return originalFetch(...args); }; return { pass: true, reason: 'ok' }; }"
+playwright-cli eval "() => { const refreshBtn = document.getElementById('topbar-refresh'); refreshBtn.dispatchEvent(new MouseEvent('click', { bubbles: true })); const msg = document.querySelector('.empty-section')?.textContent || ''; const pass = msg.includes('token expired') || msg.includes('start.ps1'); return { pass, reason: pass ? 'ok' : 'token-expired message not shown', message: msg }; }"
+```
+
+**Pass criteria:** `pass: true` — manual refresh keeps/updates last-updated label, and simulated 401 shows explicit token-expired guidance.
+
+### 12. Cleanup
 
 ```bash
 playwright-cli close
