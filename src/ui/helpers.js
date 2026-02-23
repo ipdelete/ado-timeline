@@ -56,7 +56,18 @@ function escapeWiqlString(value) {
   return String(value).replace(/'/g, "''");
 }
 
+function buildWorkItemUrl(org, project, id) {
+  if (!org || !project || id === null || id === undefined || id === '') return '';
+  return `https://dev.azure.com/${encodeURIComponent(org)}/${encodeURIComponent(project)}/_workitems/edit/${encodeURIComponent(String(id))}`;
+}
+
+function buildPullRequestUrl(org, project, prId) {
+  if (!org || !project || prId === null || prId === undefined || prId === '') return '';
+  const encodedProject = encodeURIComponent(project);
+  return `https://dev.azure.com/${encodeURIComponent(org)}/${encodedProject}/_git/${encodedProject}/pullrequest/${encodeURIComponent(String(prId))}`;
+}
+
 // ── Node.js export (no-op in browser) ─────────────────────────────────────────
 if (typeof module !== 'undefined' && module.exports) {
-  module.exports = { relativeTime, stateToSignal, signalDotClass, stateBadgeClass, typeIcon, initials, extractIdFromUrl, parseTags, escapeWiqlString };
+  module.exports = { relativeTime, stateToSignal, signalDotClass, stateBadgeClass, typeIcon, initials, extractIdFromUrl, parseTags, escapeWiqlString, buildWorkItemUrl, buildPullRequestUrl };
 }

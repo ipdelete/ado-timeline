@@ -21,6 +21,9 @@ Uses [playwright-cli](https://github.com/microsoft/playwright-cli) for browser a
 .\scripts\start.ps1
 ```
 
+> **Required for live-data e2e:** Do **not** start a plain static server directly (for example, `python -m http.server`).  
+> That serves files but does **not** refresh `ADO_TOKEN` or regenerate `src/ui/config.local.js`, so live ADO tests will fail or fall back to sample data.
+
 Verify output shows token written, config.local.js generated, and server on port 8080.
 
 ---
@@ -150,7 +153,15 @@ playwright-cli eval "() => { const dots = Array.from(document.querySelectorAll('
 
 **Pass criteria:** `pass: true` — all timeline dots use valid signal classes.
 
-### 9. Cleanup
+### 9. Click-through Links (No Toggle Side Effect)
+
+```bash
+playwright-cli eval "() => { const firstCard = document.querySelector('.timeline-card'); const idLink = firstCard?.querySelector('.compact-id.wi-link'); const prLink = firstCard?.querySelector('.pr-link') || document.querySelector('.pr-link'); if (!idLink) return { pass: false, reason: 'work item ID link not found' }; const idHrefOk = /_workitems\\/edit\\/\\d+/.test(idLink.getAttribute('href') || ''); const idTargetOk = idLink.getAttribute('target') === '_blank'; const hadExpanded = firstCard?.classList.contains('is-expanded') || false; idLink.dispatchEvent(new MouseEvent('click', { bubbles: true })); const stillSame = (firstCard?.classList.contains('is-expanded') || false) === hadExpanded; const prHrefOk = prLink ? /\\/pullrequest\\/\\d+/.test(prLink.getAttribute('href') || '') : true; const pass = idHrefOk && idTargetOk && stillSame && prHrefOk; return { pass, reason: !idHrefOk ? 'work item href malformed' : !idTargetOk ? 'work item link target is not _blank' : !stillSame ? 'link click toggled card state' : !prHrefOk ? 'PR href malformed' : 'ok', idHref: idLink.getAttribute('href'), prHref: prLink?.getAttribute('href') || 'not-present' }; }"
+```
+
+**Pass criteria:** `pass: true` — work item ID link has `_workitems/edit/<id>`, opens in new tab, card expand state does not toggle on link click, and PR links (if present) have `/pullrequest/<id>` URLs.
+
+### 10. Cleanup
 
 ```bash
 playwright-cli close

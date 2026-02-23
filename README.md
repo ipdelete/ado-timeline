@@ -14,6 +14,7 @@ Boards and backlogs in Azure DevOps are great for planning, but they aren't opti
 - Displays both open and closed items on a vertical timeline, most-recently-changed first
 - Each card shows the work item type, ID, title, state, priority, tags, assignee, and relative timestamp at a glance
 - Click a card to expand it and see full details, activity (comments), and linked items (parent/child work items, pull requests)
+- Work item IDs and linked pull requests are clickable and open directly in Azure DevOps
 
 ### Status Dots
 
@@ -65,6 +66,9 @@ No build step. Use the startup script:
 .\scripts\start.ps1
 ```
 
+> **Important:** For live ADO data, always use `.\scripts\start.ps1`.  
+> Running a plain static server (for example, `python -m http.server`) does not refresh `ADO_TOKEN` or regenerate `src/ui/config.local.js`, so you'll fail auth or fall back to bundled sample data.
+
 Then open [http://localhost:8080](http://localhost:8080).
 
 ## Tech Stack
@@ -76,4 +80,4 @@ Then open [http://localhost:8080](http://localhost:8080).
 
 ## Current State
 
-The UI is fully functional with **fake data** that mirrors real Azure DevOps REST API response shapes (field reference names, relation types, comment structure). Wiring up the live API is the next step.
+The UI supports **live Azure DevOps data** when started via `scripts/start.ps1`, with a bundled fake-data fallback that mirrors real REST API response shapes (field reference names, relation types, comment structure).

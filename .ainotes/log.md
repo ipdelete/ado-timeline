@@ -24,3 +24,5 @@
 - backlog: 10 quick-plan improvement ideas captured in backlog/plans/. Priorities: click-through links + comment HTML (high), dark mode + search + auto-refresh + linked titles (medium), URL state + keyboard + grouping + summary stats (low).
 - ux gap: Comment text uses escapeHtml() but ADO comments are HTML — should use DOMPurify like description/acceptance criteria fields already do.
 - ux gap: Work item IDs are plain text, not clickable links to ADO. URL pattern: `https://dev.azure.com/{org}/{project}/_workitems/edit/{id}`.
+- testing: Playwright `eval` that dispatches anchor clicks can navigate and destroy execution context; prevent default in-test when validating click side effects.
+- tooling: On Windows, preserving exact file bytes (e.g., `git show HEAD:file | write_bytes`) avoids accidental massive diffs from newline/encoding churn.

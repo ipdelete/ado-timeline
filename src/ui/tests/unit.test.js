@@ -13,7 +13,9 @@ const {
   initials,
   extractIdFromUrl,
   parseTags,
-  escapeWiqlString
+  escapeWiqlString,
+  buildWorkItemUrl,
+  buildPullRequestUrl
 } = require('../helpers.js');
 
 // ── relativeTime ──────────────────────────────────────────────────────────────
@@ -243,5 +245,51 @@ describe('escapeWiqlString', () => {
 
   it('handles empty string', () => {
     assert.equal(escapeWiqlString(''), '');
+  });
+});
+
+// ── ADO link builders ──────────────────────────────────────────────────────────
+
+describe('buildWorkItemUrl', () => {
+  it('builds a work item edit URL', () => {
+    assert.equal(
+      buildWorkItemUrl('fabrikam', 'Fabrikam-Fiber', 4521),
+      'https://dev.azure.com/fabrikam/Fabrikam-Fiber/_workitems/edit/4521'
+    );
+  });
+
+  it('encodes org and project path segments', () => {
+    assert.equal(
+      buildWorkItemUrl('my org', 'proj/name', 100),
+      'https://dev.azure.com/my%20org/proj%2Fname/_workitems/edit/100'
+    );
+  });
+
+  it('returns empty string when org, project, or id is missing', () => {
+    assert.equal(buildWorkItemUrl('', 'proj', 1), '');
+    assert.equal(buildWorkItemUrl('org', '', 1), '');
+    assert.equal(buildWorkItemUrl('org', 'proj', ''), '');
+  });
+});
+
+describe('buildPullRequestUrl', () => {
+  it('builds a pull request URL', () => {
+    assert.equal(
+      buildPullRequestUrl('fabrikam', 'Fabrikam-Fiber', 1847),
+      'https://dev.azure.com/fabrikam/Fabrikam-Fiber/_git/Fabrikam-Fiber/pullrequest/1847'
+    );
+  });
+
+  it('encodes org and project path segments', () => {
+    assert.equal(
+      buildPullRequestUrl('my org', 'proj/name', 99),
+      'https://dev.azure.com/my%20org/proj%2Fname/_git/proj%2Fname/pullrequest/99'
+    );
+  });
+
+  it('returns empty string when org, project, or prId is missing', () => {
+    assert.equal(buildPullRequestUrl('', 'proj', 1), '');
+    assert.equal(buildPullRequestUrl('org', '', 1), '');
+    assert.equal(buildPullRequestUrl('org', 'proj', ''), '');
   });
 });

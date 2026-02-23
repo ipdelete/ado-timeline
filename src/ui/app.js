@@ -400,6 +400,11 @@ function buildCardHTML(item) {
   const assignee = f['System.AssignedTo'];
   const priority = f['Microsoft.VSTS.Common.Priority'];
   const tags = parseTags(f['System.Tags']);
+  const workItemId = item.id ?? f['System.Id'];
+  const workItemUrl = buildWorkItemUrl(config.org, config.project, workItemId);
+  const compactIdMarkup = workItemUrl
+    ? `<a class="compact-id wi-link" href="${workItemUrl}" target="_blank" rel="noopener noreferrer">#${workItemId}</a>`
+    : `<span class="compact-id">#${workItemId}</span>`;
 
   return `
     <div class="timeline-item" data-id="${item.id}">
@@ -408,7 +413,7 @@ function buildCardHTML(item) {
 
         <div class="card-compact" data-toggle="${item.id}">
           <span class="compact-type-icon">${typeIcon(f['System.WorkItemType'])}</span>
-          <span class="compact-id">#${item.id ?? f['System.Id']}</span>
+          ${compactIdMarkup}
           <span class="compact-title">${escapeHtml(f['System.Title'])}</span>
           <div class="compact-meta">
             <span class="badge ${stateBadgeClass(f['System.State'])}">${escapeHtml(f['System.State'])}</span>
@@ -561,10 +566,14 @@ function renderLinksSection(item) {
           const prId = rel.attributes.id || '?';
           const status = rel.attributes.status || 'unknown';
           const statusClass = status === 'completed' ? 'ok' : status === 'active' ? 'info' : 'neutral';
+          const prUrl = buildPullRequestUrl(config.org, config.project, prId);
+          const prMarkup = prUrl
+            ? `<a class="link-target pr-link" href="${prUrl}" target="_blank" rel="noopener noreferrer">#${prId}</a>`
+            : `<span class="link-target">#${prId}</span>`;
           return `
             <div class="link-item">
               <span class="link-type-label">PR</span>
-              <span class="link-target">#${prId}</span>
+              ${prMarkup}
               <span class="badge ${statusClass}">${status}</span>
             </div>
           `;
@@ -584,6 +593,9 @@ function attachListeners() {
       e.stopPropagation();
       collapseCard(parseInt(btn.dataset.close, 10));
     });
+  });
+  document.querySelectorAll('a.wi-link, a.pr-link').forEach(link => {
+    link.addEventListener('click', e => e.stopPropagation());
   });
 }
 
