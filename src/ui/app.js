@@ -1,10 +1,18 @@
 // ── ADO TIMELINE — app.js ─────────────────────────────────────────────────────
 
 // ── CONFIG ────────────────────────────────────────────────────────────────────
+const runtimeConfig = window.__ADO_CONFIG || {};
+
 const config = {
-  org: 'fabrikam',
-  project: 'Fabrikam-Fiber',
-  areaPath: 'Fabrikam-Fiber\\Platform'
+  org: runtimeConfig.org || 'fabrikam',
+  project: runtimeConfig.project || 'Fabrikam-Fiber',
+  areaPath: runtimeConfig.areaPath || 'Fabrikam-Fiber\\Platform',
+  team: runtimeConfig.team || '',
+  iterationPath: ''
+};
+
+const authConfig = {
+  token: runtimeConfig.token || ''
 };
 
 // ── FAKE DATA STORE ───────────────────────────────────────────────────────────
@@ -220,7 +228,10 @@ const store = {
 
 // ── UI STATE ──────────────────────────────────────────────────────────────────
 const uiState = {
-  expandedId: null
+  expandedId: null,
+  workItems: [...store.workItems],
+  error: '',
+  loadGeneration: 0
 };
 
 // ── HELPERS ───────────────────────────────────────────────────────────────────
@@ -280,25 +291,151 @@ function parseTags(tagStr) {
   return tagStr.split(';').map(t => t.trim()).filter(Boolean);
 }
 
+function escapeWiqlString(value) {
+  return String(value).replace(/'/g, "''");
+}
+
+function hasLiveConfig() {
+  return Boolean(config.org && config.project && config.areaPath && authConfig.token);
+}
+
+async function fetchAdoWorkItems() {
+  const wiqlLines = [
+    "SELECT [System.Id], [System.Title], [System.State], [System.AssignedTo],",
+    "       [Microsoft.VSTS.Common.Priority], [System.Tags], [System.ChangedDate]",
+    'FROM WorkItems',
+    `WHERE [System.AreaPath] UNDER '${escapeWiqlString(config.areaPath)}'`
+  ];
+
+  if (config.iterationPath) {
+    wiqlLines.push(`  AND [System.IterationPath] UNDER '${escapeWiqlString(config.iterationPath)}'`);
+  }
+
+  wiqlLines.push('ORDER BY [System.ChangedDate] DESC');
+
+  const wiqlResponse = await fetch(`https://dev.azure.com/${encodeURIComponent(config.org)}/${encodeURIComponent(config.project)}/_apis/wit/wiql?api-version=7.1`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${authConfig.token}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({ query: wiqlLines.join('\n') })
+  });
+  if (!wiqlResponse.ok) throw new Error(`WIQL request failed (${wiqlResponse.status})`);
+  const wiqlData = await wiqlResponse.json();
+
+  const totalCount = (wiqlData.workItems || []).length;
+  const ids = (wiqlData.workItems || []).map(w => w.id).slice(0, 200);
+  if (ids.length === 0) return { items: [], totalCount: 0 };
+
+  const detailsResponse = await fetch(`https://dev.azure.com/${encodeURIComponent(config.org)}/${encodeURIComponent(config.project)}/_apis/wit/workitems?ids=${ids.join(',')}&$expand=relations&api-version=7.1`, {
+    headers: { 'Authorization': `Bearer ${authConfig.token}` }
+  });
+  if (!detailsResponse.ok) throw new Error(`Work item details request failed (${detailsResponse.status})`);
+  const detailsData = await detailsResponse.json();
+
+  const detailedItems = detailsData.value || [];
+  const commentResults = await Promise.allSettled(detailedItems.map(async item => [item.id, await fetchWorkItemComments(item.id)]));
+  const commentsById = new Map(commentResults.filter(r => r.status === 'fulfilled').map(r => r.value));
+
+  return {
+    items: detailedItems.map(item => ({
+      ...item,
+      relations: item.relations || [],
+      comments: commentsById.get(item.id) || []
+    })),
+    totalCount
+  };
+}
+
+async function fetchWorkItemComments(workItemId) {
+  const response = await fetch(`https://dev.azure.com/${encodeURIComponent(config.org)}/${encodeURIComponent(config.project)}/_apis/wit/workItems/${workItemId}/comments?api-version=7.1-preview.3`, {
+    headers: { 'Authorization': `Bearer ${authConfig.token}` }
+  });
+  if (!response.ok) throw new Error(`Comments request failed for #${workItemId} (${response.status})`);
+  const data = await response.json();
+  return data.comments || [];
+}
+
+async function fetchIterationPaths() {
+  if (!config.team) return { paths: [], currentPath: '' };
+  const baseUrl = `https://dev.azure.com/${encodeURIComponent(config.org)}/${encodeURIComponent(config.project)}/${encodeURIComponent(config.team)}/_apis/work/teamsettings/iterations`;
+
+  // Fetch all team iterations
+  const allResp = await fetch(`${baseUrl}?api-version=7.1`, {
+    headers: { 'Authorization': `Bearer ${authConfig.token}` }
+  });
+  if (!allResp.ok) return { paths: [], currentPath: '' };
+  const allData = await allResp.json();
+  const paths = (allData.value || []).map(i => i.path);
+
+  // Fetch current iteration
+  let currentPath = '';
+  const curResp = await fetch(`${baseUrl}?$timeframe=current&api-version=7.1`, {
+    headers: { 'Authorization': `Bearer ${authConfig.token}` }
+  });
+  if (curResp.ok) {
+    const curData = await curResp.json();
+    if (curData.value && curData.value.length > 0) currentPath = curData.value[0].path;
+  }
+
+  return { paths, currentPath };
+}
+
+async function loadWorkItems() {
+  const timeline = document.getElementById('timeline');
+  timeline.innerHTML = `
+    <div class="timeline-heading">Work Items</div>
+    <div class="empty-section">Loading…</div>
+  `;
+
+  const gen = ++uiState.loadGeneration;
+
+  try {
+    const result = await fetchAdoWorkItems();
+    if (gen !== uiState.loadGeneration) return; // stale response
+    uiState.workItems = result.items;
+    uiState.totalCount = result.totalCount;
+    uiState.error = '';
+  } catch (error) {
+    if (gen !== uiState.loadGeneration) return;
+    uiState.workItems = [...store.workItems];
+    uiState.totalCount = store.workItems.length;
+    uiState.error = `Live ADO fetch failed: ${error.message}. Showing bundled sample data.`;
+  }
+
+  renderTopbar();
+  renderTimeline();
+}
+
+function getWorkItems() {
+  return uiState.workItems;
+}
+
 // ── RENDER: TOPBAR ────────────────────────────────────────────────────────────
 function renderTopbar() {
   document.getElementById('topbar-project').textContent = config.project;
   document.getElementById('topbar-area').textContent = config.areaPath;
 
-  const open = store.workItems.filter(i => i.fields['System.State'] !== 'Closed' && i.fields['System.State'] !== 'Done').length;
-  const total = store.workItems.length;
-  document.getElementById('topbar-count').textContent = `${open} open · ${total} total`;
+  const workItems = getWorkItems();
+  const open = workItems.filter(i => !['Closed', 'Done', 'Resolved'].includes(i.fields['System.State'])).length;
+  const total = workItems.length;
+  const totalCount = uiState.totalCount || total;
+  const capNote = totalCount > total ? ` (showing ${total} of ${totalCount})` : '';
+  document.getElementById('topbar-count').textContent = `${open} open · ${total} total${capNote}`;
 }
 
 // ── RENDER: TIMELINE ──────────────────────────────────────────────────────────
 function renderTimeline() {
-  const sorted = [...store.workItems].sort((a, b) =>
+  const sorted = [...getWorkItems()].sort((a, b) =>
     new Date(b.fields['System.ChangedDate']) - new Date(a.fields['System.ChangedDate'])
   );
 
   const timeline = document.getElementById('timeline');
   timeline.innerHTML = `
     <div class="timeline-heading">Work Items</div>
+    ${uiState.error ? `<div class="empty-section">${escapeHtml(uiState.error)}</div>` : ''}
+    ${sorted.length === 0 ? '<div class="empty-section">No work items found for the configured filters.</div>' : ''}
     ${sorted.map(item => buildCardHTML(item)).join('')}
   `;
 
@@ -325,12 +462,11 @@ function buildCardHTML(item) {
 
         <div class="card-compact" data-toggle="${item.id}">
           <span class="compact-type-icon">${typeIcon(f['System.WorkItemType'])}</span>
-          <span class="compact-id">#${f['System.Id']}</span>
+          <span class="compact-id">#${item.id ?? f['System.Id']}</span>
           <span class="compact-title">${escapeHtml(f['System.Title'])}</span>
           <div class="compact-meta">
-            <span class="badge ${stateBadgeClass(f['System.State'])}">${f['System.State']}</span>
-            ${priority ? `<span class="compact-priority p${priority <= 2 ? priority : ''}">P${priority}</span>` : ''}
-            ${tags.map(t => `<span class="tag-pill${t.toLowerCase() === 'blocked' ? ' tag-blocked' : ''}">${escapeHtml(t)}</span>`).join('')}
+            <span class="badge ${stateBadgeClass(f['System.State'])}">${escapeHtml(f['System.State'])}</span>
+            ${priority ? `<span class="compact-priority${priority <= 2 ? ' p' + priority : ''}">P${priority}</span>` : ''}
             <span class="compact-owner">${assignee ? escapeHtml(assignee.displayName) : '<em>Unassigned</em>'}</span>
             <span class="compact-time">${relativeTime(f['System.ChangedDate'])}</span>
           </div>
@@ -340,6 +476,7 @@ function buildCardHTML(item) {
         <div class="card-expand-wrapper">
           <div class="card-expand-inner">
             <div class="card-close-row">
+              ${tags.length ? `<div class="card-tags">${tags.map(t => `<span class="tag-pill${t.toLowerCase() === 'blocked' ? ' tag-blocked' : ''}">${escapeHtml(t)}</span>`).join('')}</div>` : ''}
               <button class="card-close-btn" data-close="${item.id}">✕</button>
             </div>
             <div class="card-sections" id="card-sections-${item.id}"></div>
@@ -353,7 +490,7 @@ function buildCardHTML(item) {
 
 // ── RENDER: EXPANDED SECTIONS ─────────────────────────────────────────────────
 function renderExpandedContent(id) {
-  const item = store.workItems.find(i => i.id === id);
+  const item = getWorkItems().find(i => i.id === id);
   if (!item) return;
   const container = document.getElementById(`card-sections-${id}`);
   if (!container) return;
@@ -393,11 +530,11 @@ function renderDetailsSection(item) {
       </div>
       ${f['System.Description'] ? `
         <label>Description</label>
-        <div class="section-html">${f['System.Description']}</div>
+        <div class="section-html">${DOMPurify.sanitize(f['System.Description'])}</div>
       ` : ''}
       ${ac ? `
         <label>Acceptance Criteria</label>
-        <div class="section-html">${ac}</div>
+        <div class="section-html">${DOMPurify.sanitize(ac)}</div>
       ` : ''}
     </div>
   `;
@@ -416,18 +553,20 @@ function renderActivitySection(item) {
   return `
     <div class="card-section">
       <div class="section-label">Activity</div>
-      ${item.comments.map(c => `
+      ${item.comments.map(c => {
+        const authorName = c.createdBy?.displayName || 'Unknown';
+        return `
         <div class="comment-item">
-          <div class="comment-avatar">${initials(c.createdBy.displayName)}</div>
+          <div class="comment-avatar">${initials(authorName)}</div>
           <div class="comment-body">
             <div class="comment-header">
-              <span class="comment-author">${escapeHtml(c.createdBy.displayName)}</span>
+              <span class="comment-author">${escapeHtml(authorName)}</span>
               <span class="comment-date">${relativeTime(c.createdDate)}</span>
             </div>
             <div class="comment-text">${escapeHtml(c.text)}</div>
           </div>
         </div>
-      `).join('')}
+      `}).join('')}
     </div>
   `;
 }
@@ -526,9 +665,42 @@ function collapseCard(id) {
 }
 
 // ── INIT ──────────────────────────────────────────────────────────────────────
-function init() {
-  renderTopbar();
-  renderTimeline();
+async function init() {
+  const timeline = document.getElementById('timeline');
+  timeline.innerHTML = `
+    <div class="timeline-heading">Work Items</div>
+    <div class="empty-section">Loading…</div>
+  `;
+
+  if (!hasLiveConfig()) {
+    uiState.workItems = [...store.workItems];
+    uiState.error = 'Missing runtime ADO config/token. Showing bundled sample data.';
+    renderTopbar();
+    renderTimeline();
+    return;
+  }
+
+  // Populate iteration dropdown
+  const iterSelect = document.getElementById('topbar-iteration');
+  try {
+    const { paths, currentPath } = await fetchIterationPaths();
+    if (!config.iterationPath && currentPath) config.iterationPath = currentPath;
+    paths.forEach(p => {
+      const opt = document.createElement('option');
+      opt.value = p;
+      opt.textContent = p;
+      if (p === config.iterationPath) opt.selected = true;
+      iterSelect.appendChild(opt);
+    });
+  } catch (_) { /* dropdown stays with "All iterations" only */ }
+
+  iterSelect.addEventListener('change', async () => {
+    config.iterationPath = iterSelect.value;
+    uiState.expandedId = null;
+    await loadWorkItems();
+  });
+
+  await loadWorkItems();
 }
 
 init();

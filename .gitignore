@@ -1,1 +1,4 @@
 .env
+src/ui/config.local.js
+.playwright-cli/
+tmp/

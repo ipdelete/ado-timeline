@@ -46,23 +46,23 @@ You must have `az login` completed beforehand. The token is passed as a Bearer h
 
 ## Configuration
 
-Edit the `config` object at the top of `src/ui/app.js`:
+Create a `.env` in the repo root (gitignored):
 
-```js
-const config = {
-  org: 'my-org',
-  project: 'my-project',
-  areaPath: 'MyProject\\MyTeam'
-};
+```bash
+ADO_ORG=my-org
+ADO_PROJECT=my-project
+ADO_AREA_PATH=MyProject\MyTeam
+ADO_TEAM=MyTeam
 ```
+
+`scripts/start.ps1` refreshes `ADO_TOKEN` via `az`, writes `src/ui/config.local.js`, and starts the local server.
 
 ## Running Locally
 
-No build step. Serve the `src/ui/` directory with any static file server:
+No build step. Use the startup script:
 
-```bash
-cd src/ui
-python3 -m http.server 8080
+```powershell
+.\scripts\start.ps1
 ```
 
 Then open [http://localhost:8080](http://localhost:8080).

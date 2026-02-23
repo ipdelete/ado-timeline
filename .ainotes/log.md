@@ -10,3 +10,11 @@
 - css: All colors via CSS custom properties in :root. Badge classes are semantic (ok/warn/danger/info/neutral). Dot classes are dot-ok/dot-warn/dot-danger/dot-new.
 - auth: ADO REST API supports CORS from localhost, so no proxy needed. Token acquisition is the only server-side concern.
 - config: .env file stores ADO_ORG, ADO_PROJECT, ADO_AREA_PATH, ADO_ITERATION_PATH, ADO_TOKEN. Gitignored. scripts/start.ps1 refreshes token and starts server.
+
+## 2026-02-23
+- security: ADO Description and AcceptanceCriteria fields return HTML — must sanitize before innerHTML injection. DOMPurify via CDN handles this.
+- robustness: Promise.all for comment fetches is all-or-nothing — one 403/404 kills all items. Use Promise.allSettled to isolate per-item failures.
+- robustness: Rapid iteration dropdown changes can cause race conditions — older responses overwrite newer ones. A generation counter in uiState guards against stale responses.
+- api: WIQL can return thousands of items but the batch detail endpoint is capped at 200 IDs per call. The 200-item slice is silent unless the topbar shows "showing N of M".
+- config: config.local.js is gitignored and only exists after running start.ps1. An inline `window.__ADO_CONFIG = window.__ADO_CONFIG || {}` in index.html prevents 404 console noise.
+- testing: playwright-cli `select` command fails with backslash-containing option values — use JS `selectedIndex` + `dispatchEvent` as a workaround.
